@@ -83,7 +83,10 @@ fi
 * Используется только в CI, т.к. меняет pom.xml на ветке.
 
 ### Назначение
-Запуск тестов только на те модули, которые были фактически задеты изменения. Учитываются зависимости модулей на семантическом уровне, а не только синтаксис путей, что позволяет более тонкий выбор, относительно скрипта.
+Запуск тестов только на те модули, которые были задеты изменениями прямо или косвенно. 
+
+### Преимущество
+Учитываются зависимости модулей на семантическом уровне, а не только синтаксис путей, что позволяет более тонкий выбор, относительно скрипта.
 
 ### Результат работы
 Результатом работы плагина должны стать два файла changes.list и dependencies.list,
@@ -118,7 +121,76 @@ incrementTest:
 
 ### Пример
 
-Пример описан [в GitLab проекта](https://gitlab.com/povolzhye/maven/version-based-on-commit-maven-plugin).
+Предположим, имеем проект следующей структуры модулей
+(в скобках указанны зависимости):
+
+```
+root
+|-dao
+| |-dao-api
+| |-dao-impl (dao-api)
+|-parent
+|-service
+| |-service-api
+| |-service-impl (dao-api, service-api)
+|-web (service-api)
+|-app (dao-impl, service-impl, web)
+|-jacoco (dao-api, dao-impl, service-api, service-impl, web, app)
+```
+
+В истории git имеем следующие commit:
+
+1. commit 191c85f3 Tue Jul 20 2024
+2. commit 96f43e01 Tue Jul 21 2024
+3. commit 73542265 Tue Jul 22 2024
+4. commit a832ebf4 Tue Jul 23 2024
+5. commit f00494df Tue Jul 23 2024
+
+Какие модули менялись в каких commit и какую версию будут иметь модули после запуска plugin:
+
+| Модули       | 191c85f3 | 96f43e01 | 73542265 | a832ebf4 | f00494df | Версия                |
+|:-------------|:--------:|:--------:|:--------:|:--------:|:--------:|-----------------------|
+| root         |    X     |          |          |          |          | не изменится          |
+| dao          |    X     |          |          |          |          | не изменится          |
+| dao-api      |    X     |    X     |          |          |          | `2024_07_21_96f43e01` |
+| dao-impl     |    X     |    X     |          |          |    Х     | `2024_07_23_f00494df` |
+| parent       |    X     |          |          |          |          | не изменится          |
+| service      |    X     |          |    X     |          |          | не изменится          |
+| service-api  |    X     |          |    X     |          |          | `2024_07_22_73542265` |
+| service-impl |    X     |          |    X     |          |          | `2024_07_22_73542265` |
+| web          |    X     |          |          |    Х     |          | `2024_07_23_a832ebf4` |
+| app          |    X     |          |          |          |    Х     | `2024_07_23_f00494df` |
+| jacoco       |    X     |          |          |          |          | `2024_07_20_191c85f3` |
+
+Содержимое файлов:
+
+changes.list
+
+```text
+dao/dao-impl, app
+```
+
+dependencies.list
+
+```text
+dao/dao-impl, app, jacoco
+```
+
+Если запуск происходил бы на commit 73542265 то, содержимое файлов было бы следующим:
+
+changes.list
+
+```text
+service/service-api, service/service-impl
+```
+
+dependencies.list
+
+```text
+service/service-api, service/service-impl, web, app, jacoco
+```
+
+
 
 ### Сайд эффекты
 
